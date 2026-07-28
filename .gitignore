@@ -1,0 +1,7 @@
+sites/*.secrets
+logs/*
+!logs/.gitkeep
+*.local
+.DS_Store
+sites/*.conf
+!sites/.gitkeep
