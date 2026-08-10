@@ -23,6 +23,7 @@ EOF
   assert_eq "$MAX_FILES" "7" "profile overrides MAX_FILES"
   assert_eq "$MAX_NEW_PAGES" "2" "defaults MAX_NEW_PAGES"
   assert_eq "$BUILD_CMD" "yarn build" "defaults BUILD_CMD"
+  assert_eq "$DEPENDENCY_CMD" "auto" "defaults DEPENDENCY_CMD to auto"
 )
 
 # missing required -> failure
@@ -48,6 +49,7 @@ EOF
   cat > "$SEO_AUTOPILOT_HOME/sites/siteA.secrets" <<EOF
 SLACK_WEBHOOK_URL="AAA"
 EOF
+  chmod 600 "$SEO_AUTOPILOT_HOME/sites/siteA.secrets"
   cat > "$SEO_AUTOPILOT_HOME/sites/siteB.conf" <<EOF
 DOMAIN="b.com"
 REPO_PATH="$repo_b"
@@ -58,6 +60,21 @@ EOF
   load_profile siteA
   load_profile siteB
   assert_eq "$SLACK_WEBHOOK_URL" "" "secrets do not leak between profiles"
+)
+
+# Profiles are parsed as data; shell statements are rejected and never run.
+( setup_profile_home
+  marker="$(mktemp -d)/executed"
+  printf 'touch "%s"\n' "$marker" >> "$SEO_AUTOPILOT_HOME/sites/demo.conf"
+  source "$PROFILE_SH"
+  TESTS_RUN=$((TESTS_RUN + 1))
+  if load_profile demo >/dev/null 2>&1; then
+    fail "profile shell statement was accepted"
+  elif [[ -e "$marker" ]]; then
+    fail "profile shell statement was executed"
+  else
+    pass "profile shell statements are rejected without execution"
+  fi
 )
 
 # REPO_PATH not a git repo -> failure
