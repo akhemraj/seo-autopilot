@@ -2,21 +2,28 @@
 set -euo pipefail
 CURL=${CURL:-curl}
 GIT=${GIT:-git}
+: "${SEO_AUTOPILOT_HOME:="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"}"
+# shellcheck disable=SC1091
+source "$SEO_AUTOPILOT_HOME/lib/remote.sh"
 
 repo_slug() { # -> owner/repo from origin remote
-  local u; u="$($GIT -C "$REPO_PATH" remote get-url origin)"
-  u="${u%.git}"; u="${u#*github.com[:/]}"
-  printf '%s' "$u"
+  local u; u="$($GIT -C "$REPO_PATH" config --get remote.origin.url)"
+  github_repo_slug_from_url "$u"
 }
 
 push_branch() { # branch — token read from env by the helper, never in argv
-  local origin_url; origin_url="$($GIT -C "$REPO_PATH" remote get-url origin)"
+  local origin_url slug; origin_url="$($GIT -C "$REPO_PATH" config --get remote.origin.url)"
+  slug="$(github_repo_slug_from_url "$origin_url")" || return 1
   if [[ "$origin_url" == git@* || "$origin_url" == *ssh://* ]]; then
     echo "push_branch: origin '$origin_url' is an SSH remote — the fine-grained GH_TOKEN credential helper does NOT apply; git will use the ambient SSH key instead. The scoped-token threat model is not in effect for this push." >&2
   fi
   ( cd "$REPO_PATH"
+    export SEO_GITHUB_PATH="$slug"
+    export GIT_TERMINAL_PROMPT=0
     $GIT -c credential.helper='' \
-         -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+         -c credential.useHttpPath=true \
+         -c core.hooksPath=/dev/null \
+         -c "credential.helper=!$SEO_AUTOPILOT_HOME/bin/git-credential-github" \
          push -u origin "$1" --quiet )
 }
 
@@ -25,9 +32,9 @@ _gh_api() {
   local method="$1" url="$2" data="${3:-}" cfg
   cfg="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: application/vnd.github+json"\nheader = "X-GitHub-Api-Version: 2022-11-28"\n' "$GH_TOKEN")"
   if [[ -n "$data" ]]; then
-    printf '%s' "$cfg" | "$CURL" --fail-with-body -sS --config - -X "$method" "$url" -d "$data"
+    printf '%s' "$cfg" | "$CURL" -q --proto '=https' --tlsv1.2 --max-redirs 0 --fail-with-body -sS --config - -X "$method" "$url" -d "$data"
   else
-    printf '%s' "$cfg" | "$CURL" --fail-with-body -sS --config - -X "$method" "$url"
+    printf '%s' "$cfg" | "$CURL" -q --proto '=https' --tlsv1.2 --max-redirs 0 --fail-with-body -sS --config - -X "$method" "$url"
   fi
 }
 

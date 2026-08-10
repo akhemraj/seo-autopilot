@@ -2,10 +2,17 @@
 set -euo pipefail
 
 log_init() { # logfile
-  local f="$1"; mkdir -p "$(dirname "$f")"
-  exec > >(tee -a "$f") 2>&1
+  LOG_FILE="$1"
+  mkdir -p "$(dirname "$LOG_FILE")"
+  : > "$LOG_FILE"
 }
 _ts() { date '+%H:%M:%S'; }
+_emit() {
+  printf '%s\n' "$*" | tee -a "${LOG_FILE:-/dev/null}"
+}
+_emit_err() {
+  printf '%s\n' "$*" | tee -a "${LOG_FILE:-/dev/null}" >&2
+}
 
 # ── Markdown mirror ────────────────────────────────────────────────
 # Every run also writes a pretty, GitHub-flavored .md of the whole log so it
@@ -22,17 +29,17 @@ md_block() { # title  (body piped on stdin) -> a fenced code block in the .md
 # ── Beautified console output (mirrored to Markdown) ───────────────
 # Symbols read at a glance:  ▶ phase   • detail   ✓ ok   ⚠ warning   ⏭ skipped   ✗ error
 log_banner() {                                   # run header / section divider
-  echo ""
-  echo "  ┌────────────────────────────────────────────────────────┐"
-  printf '  │  %-54s│\n' "$*"
-  echo "  └────────────────────────────────────────────────────────┘"
+  _emit ""
+  _emit "  ┌────────────────────────────────────────────────────────┐"
+  printf '  │  %-54s│\n' "$*" | tee -a "${LOG_FILE:-/dev/null}"
+  _emit "  └────────────────────────────────────────────────────────┘"
   _md ""; _md "## $*"
 }
-log_step() { echo ""; echo "[$(_ts)] ▶  $*"; _md ""; _md "### ▶ $*"; }
-log_info() { echo "[$(_ts)]    •  $*"; _md "- $*"; }
-log_ok()   { echo "[$(_ts)]    ✓  $*"; _md "- ✅ $*"; }
-log_warn() { echo "[$(_ts)]    ⚠  $*"; _md "- ⚠️ $*"; }
-log_skip() { echo "[$(_ts)]    ⏭  $*"; _md "- ⏭️ $*"; }
-log_err()  { echo "[$(_ts)]    ✗  $*" >&2; _md "- ❌ $*"; }
+log_step() { _emit ""; _emit "[$(_ts)] ▶  $*"; _md ""; _md "### ▶ $*"; }
+log_info() { _emit "[$(_ts)]    •  $*"; _md "- $*"; }
+log_ok()   { _emit "[$(_ts)]    ✓  $*"; _md "- ✅ $*"; }
+log_warn() { _emit "[$(_ts)]    ⚠  $*"; _md "- ⚠️ $*"; }
+log_skip() { _emit "[$(_ts)]    ⏭  $*"; _md "- ⏭️ $*"; }
+log_err()  { _emit_err "[$(_ts)]    ✗  $*"; _md "- ❌ $*"; }
 # Heartbeat pulse — console only, so the 20s cadence doesn't spam the .md
-log_beat() { echo "[$(_ts)]    •  $*"; }
+log_beat() { _emit "[$(_ts)]    •  $*"; }

@@ -40,11 +40,9 @@ preflight_repo() {
 create_branch() {
   _in_repo
   local b="seo/weekly-${SEO_RUN_DATE}"
-  if $GIT show-ref --verify --quiet "refs/heads/$b"; then
-    $GIT checkout --quiet "$b"
-  else
-    $GIT checkout --quiet -b "$b"
-  fi
+  # This namespace is orchestrator-owned. Rebuild it from the refreshed base on
+  # every run so a same-week retry cannot inherit stale or rejected changes.
+  $GIT checkout --quiet -B "$b" "$BASE_BRANCH"
   printf '%s' "$b"
 }
 
@@ -75,12 +73,31 @@ scope_guard() {
   if [[ ${#offend[@]} -gt 0 ]]; then
     echo "scope_guard: changed files match EXCLUDE_GLOBS: ${offend[*]}" >&2; return 1
   fi
+  # Dependency definitions are a non-configurable trust boundary. The
+  # dependency preparation phase may use network access, so agents can never
+  # change package manifests, lockfiles, or package-manager configuration.
+  local dependency_files=()
+  while IFS= read -r f; do
+    case "/$f" in
+      */package.json|*/package-lock.json|*/npm-shrinkwrap.json|*/yarn.lock|\
+      */pnpm-lock.yaml|*/bun.lock|*/bun.lockb|*/.npmrc|*/.yarnrc|*/.yarnrc.yml)
+        dependency_files+=("$f")
+        ;;
+      */pnpm-workspace.yaml|*/.pnpmfile.cjs|*/.yarn/*)
+        dependency_files+=("$f")
+        ;;
+    esac
+  done <<< "$files"
+  if [[ ${#dependency_files[@]} -gt 0 ]]; then
+    echo "scope_guard: dependency definitions are immutable: ${dependency_files[*]}" >&2
+    return 1
+  fi
   # positive scope: every changed file must be inside EDITABLE_GLOBS (the tool's own report is always allowed)
   local eglobs; read -ra eglobs <<< "$EDITABLE_GLOBS"
   local outside=() ok
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
-    [[ "$f" == tasks/seo/reports/* ]] && continue
+    [[ "$f" == "tasks/seo/reports/$SEO_RUN_DATE.md" ]] && continue
     ok=0
     for glob in "${eglobs[@]}"; do
       re="$(glob_to_regex "$glob")"

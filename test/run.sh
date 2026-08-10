@@ -10,7 +10,13 @@ for t in test_*.sh; do
   # EOF (the make_mock stdin-capture `cat` would otherwise block when stdin is a
   # non-tty, non-closed handle, e.g. under CI or a nested non-interactive shell).
   # Piped stdin from within a test (printf | curl) still overrides this per-command.
-  ( source lib.sh; source "$t" ) < /dev/null || echo "  (test file errored)"
+  if ( source lib.sh; source "$t" ) < /dev/null; then
+    :
+  else
+    rc=$?
+    echo "F" >> "$RESULTS"
+    echo "  ✗ test file aborted (rc=$rc)"
+  fi
 done
 total=$(grep -c . "$RESULTS" 2>/dev/null || true); total=${total:-0}
 failed=$(grep -c '^F' "$RESULTS" 2>/dev/null || true); failed=${failed:-0}

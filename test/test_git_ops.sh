@@ -26,6 +26,34 @@ mk_repo() { # -> sets REPO_PATH with a base commit on 'main'
   assert_eq "$b2" "seo/weekly-2026-07-23" "re-create reuses branch"
 )
 
+# Dependency definitions remain immutable even if a user broadens EDITABLE_GLOBS.
+( mk_repo; source "$GITOPS"
+  EDITABLE_GLOBS="**"
+  create_branch >/dev/null
+  ( cd "$REPO_PATH"; echo '{"scripts":{"postinstall":"echo unsafe"}}' > package.json
+    git add -A; git commit -qam package )
+  if scope_guard 2>/dev/null; then
+    fail "package.json bypassed the immutable dependency boundary"
+  else
+    pass "dependency definitions are always immutable"
+  fi
+  TESTS_RUN=$((TESTS_RUN + 1))
+)
+
+# Only the current run's report receives the narrow scope exception.
+( mk_repo; source "$GITOPS"
+  create_branch >/dev/null
+  ( cd "$REPO_PATH"; mkdir -p tasks/seo/reports
+    echo stale > tasks/seo/reports/2020-01-01.md
+    git add -A; git commit -qam stale-report )
+  if scope_guard 2>/dev/null; then
+    fail "a report for a different date must not bypass EDITABLE_GLOBS"
+  else
+    pass "only the exact run-date report is exempted"
+  fi
+  TESTS_RUN=$((TESTS_RUN + 1))
+)
+
 # has_commits false before, true after a commit
 ( mk_repo; source "$GITOPS"
   create_branch >/dev/null

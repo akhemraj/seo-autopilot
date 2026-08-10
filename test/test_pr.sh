@@ -59,7 +59,12 @@ else echo '{}'; fi"
 # push_branch: the token never appears in git's argv (ps-safe)
 ( setup_mocks
   REPO_PATH="$(mktemp -d)"; GH_TOKEN="ghtok_SECRET"; export REPO_PATH GH_TOKEN
-  make_mock git 'exit 0'
+  make_mock git 'args="$*"
+if [[ "$args" == *"config --get remote.origin.url"* ]]; then
+  echo "https://github.com/acme/site.git"
+else
+  exit 0
+fi'
   source "$PRSH"
   push_branch seo/weekly-2026-07-23
   assert_contains "$(mock_calls git)" "push" "push_branch invokes git push"
@@ -70,7 +75,7 @@ else echo '{}'; fi"
 ( setup_mocks
   REPO_PATH="$(mktemp -d)"; GH_TOKEN="ghtok_SECRET"; export REPO_PATH GH_TOKEN
   make_mock git "args=\"\$*\"
-if [[ \"\$args\" == *'remote get-url origin'* ]]; then echo 'git@github.com:acme/site.git'
+if [[ \"\$args\" == *'config --get remote.origin.url'* ]]; then echo 'git@github.com:acme/site.git'
 else exit 0; fi"
   source "$PRSH"
   warn="$(push_branch seo/weekly-2026-07-23 2>&1 >/dev/null)"
@@ -82,7 +87,7 @@ else exit 0; fi"
 ( setup_mocks
   REPO_PATH="$(mktemp -d)"; GH_TOKEN="ghtok_SECRET"; export REPO_PATH GH_TOKEN
   make_mock git "args=\"\$*\"
-if [[ \"\$args\" == *'remote get-url origin'* ]]; then echo 'https://github.com/acme/site.git'
+if [[ \"\$args\" == *'config --get remote.origin.url'* ]]; then echo 'https://github.com/acme/site.git'
 else exit 0; fi"
   source "$PRSH"
   warn="$(push_branch seo/weekly-2026-07-23 2>&1 >/dev/null)"
