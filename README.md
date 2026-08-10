@@ -16,11 +16,27 @@ SEO Autopilot pulls real findings from [Ubersuggest](https://neilpatel.com/ubers
 
 ---
 
-## Quick start
+## Prerequisites
 
-**You need:** an authenticated [Claude Code](https://claude.com/claude-code) CLI
-(a Claude subscription **or** an Anthropic API key — [details](#claude-plan-or-api-key)),
-a paid Ubersuggest account, Docker running, plus `jq` and `gitleaks`.
+Everything runs on the machine that owns the schedule — there is no hosted
+service and no server component.
+
+| You need | Why |
+| --- | --- |
+| **Claude Code CLI, installed *and* authenticated** | Every agent is a headless `claude -p` run. A **Claude subscription or an Anthropic API key** both work — see [plans and run cost](#claude-code-plans-and-run-cost). |
+| **A paid Ubersuggest account with MCP access** | The research agent's only data source. |
+| **Docker (Desktop, Engine, or Colima) running** | The build gate refuses to run agent-written code on the host. |
+| **`git`, `jq`, `gitleaks`, `curl`, Bash** | Safety gates, secret scanning, and PR creation. No Bash 4 features are used, so macOS's stock 3.2 is fine. |
+| **A fine-grained GitHub PAT + a Slack incoming webhook** | Pushing the branch, opening the PR, and alerting you. |
+| **A Next.js-style repo you can open PRs against** | The agents know App Router conventions; the PR machinery is framework-agnostic. |
+
+Confirm Claude Code is authenticated before you start — this must print `ok`:
+
+```bash
+claude -p "reply with: ok"
+```
+
+## Quick start
 
 ```bash
 # 1 — one-time machine setup
@@ -52,9 +68,10 @@ Then review the PR it opens. That's the whole loop.
 which suit an App Router repo on Yarn. Adjust both if yours differs, and point
 `REPO_PATH` at a **dedicated clone**, not your day-to-day working copy.
 
-Everything below is detail: [Requirements](#requirements) ·
-[One-time setup](#one-time-setup) · [Site profile fields](#site-profile-fields-sitesslugconf) ·
-[Safety](#safety) · [How the agent team works](docs/how-the-agents-work.md).
+Everything below is detail: [One-time setup](#one-time-setup) ·
+[Plans and run cost](#claude-code-plans-and-run-cost) ·
+[Site profile fields](#site-profile-fields-sitesslugconf) · [Safety](#safety) ·
+[How the agent team works](docs/how-the-agents-work.md).
 
 ---
 
@@ -159,34 +176,16 @@ Each run also writes a pretty **per-commit Markdown log** (`logs/<slug>/<date>.m
 
 ---
 
-## Requirements
+## Claude Code, plans, and run cost
 
-Everything runs on the machine that owns the schedule — there is no hosted
-service and no server component.
-
-| Requirement | Why |
-| --- | --- |
-| **Claude Code CLI, installed *and* authenticated** | Every agent is a headless `claude -p` run. |
-| **A paid Ubersuggest account with MCP access** | The research agent's only data source. |
-| **Docker (Desktop, Engine, or Colima) running** | The build gate refuses to run agent-written code on the host. |
-| **`git`, `jq`, `gitleaks`, `curl`, Bash** | Safety gates, secret scanning, and PR creation. No Bash 4 features are used, so macOS's stock 3.2 is fine. |
-| **A fine-grained GitHub PAT + a Slack incoming webhook** | Pushing the branch, opening the PR, and alerting you. |
-
-### Claude plan or API key?
-
-**Either works, and you do not configure it here.** The orchestrator invokes
-whatever `claude` binary is on `PATH` (override with the `CLAUDE` environment
-variable) and never reads, stores, or forwards Anthropic credentials. It simply
-inherits the authentication your Claude Code install already has:
+**A subscription or an API key both work, and you do not configure it here.**
+The orchestrator invokes whatever `claude` binary is on `PATH` (override with
+the `CLAUDE` environment variable) and never reads, stores, or forwards
+Anthropic credentials. It simply inherits the authentication your Claude Code
+install already has:
 
 - a **Claude subscription** (Pro or Max) — runs consume your plan's usage limits, or
 - an **Anthropic API key** — runs are billed as metered tokens.
-
-Verify the machine is authenticated before onboarding a site:
-
-```bash
-claude -p "reply with: ok"
-```
 
 **Budget expectation.** A clean run is roughly **nine** headless agent
 invocations — research, planner, four category specialists, report writer, and
